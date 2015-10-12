@@ -53,6 +53,9 @@ function train_network(network,dataset)
 		local input = dataset[index][1]
 		local output = dataset[index][2]
 
+		print(input)
+		os.exit()
+
 		-- forward propagation
 		criterion:forward(network:forward(input),output)
 		-- zero the accumlated gradient
