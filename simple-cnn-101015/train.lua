@@ -9,9 +9,22 @@ require "torch"
 require "nn"
 require "math"
 
+-- add command line input
+cmd = torch.CmdLine()
+cmd:text() -- log a custom text message
+cmd:text('Training a simple CNN')
+cmd:text()
+cmd:text('Options')
+cmd:option('-lr',0.01,'Learning rate')
+cmd:option('-maxI',100000,'Maximum Iterations')
+cmd:text()
+
+-- parse the input params
+params =cmd:parse(arg)
+
 -- variables
-learningRate = 0.01
-maxIterations = 100000
+learningRate = params.lr
+maxIterations = params.maxI
 
 -- create the neural network
 function create_network(nb_outputs)
