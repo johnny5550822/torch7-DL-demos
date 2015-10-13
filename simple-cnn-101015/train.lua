@@ -30,12 +30,18 @@ maxIterations = params.maxI
 function create_network(nb_outputs)
 	local cnn = nn.Sequential();	
 
-	cnn:add(nn.SpatialConvolution(1,6,5,5)) -- becomes 12x12x6
+	-- first convolution, non-linear, and pooling
+	cnn:add(nn.SpatialConvolution(1,10,3,3,1,1,0,0)) -- (nInputPlane, nOutputPlane, kW, kH, [dW], [dH], [padW], [padH]). E.g., input:1x16x16, beomes 10x14x14
 	cnn:add(nn.ReLU()) -- non-linear layer
-	cnn:add(nn.SpatialSubSampling(6,2,2,2,2)) -- becomes 6x6x6
+	cnn:add(nn.SpatialMaxPooling(2,2)) -- becomes 10x7x7
 
-	cnn:add(nn.Reshape(6*6*6))
-	cnn:add(nn.Linear(6*6*6,nb_outputs))
+	-- second convolution, non-linear, and pooling
+	cnn:add(nn.SpatialConvolution(10,40,2,2,1,1,0,0)) -- (nInputPlane, nOutputPlane, kW, kH, [dW], [dH], [padW], [padH]). E.g., input:10x14x14, beomes 40x6x6
+	cnn:add(nn.ReLU()) -- non-linear layer
+	cnn:add(nn.SpatialMaxPooling(2,2)) -- becomes 40x3x3
+
+	cnn:add(nn.Reshape(40*3*3))
+	cnn:add(nn.Linear(40*3*3,nb_outputs))
 	cnn:add(nn.LogSoftMax())
 
 	return cnn
@@ -50,11 +56,12 @@ function train_network(network,dataset)
 		print(string.format('Iteration(max=%d) No.%d',maxIterations,iteration))
 
 		local index = math.random(dataset:size()) --pick example at random
-		local input = dataset[index][1]
-		local output = dataset[index][2]
+		local input = dataset[index][1] -- size 1x16x16
+		local output = dataset[index][2] -- size 1
 
-		print(input)
-		os.exit()
+		-- DEBUG: To check the network output size
+		--print(network:forward(input))
+		--os.exit()
 
 		-- forward propagation
 		criterion:forward(network:forward(input),output)
@@ -83,7 +90,6 @@ function test_predictor(predictor, test_dataset, classes, classes_names)
                local responses_per_class  =  predictor:forward(input) 
                local probabilites_per_class = torch.exp(responses_per_class)
                local probability, prediction = torch.max(probabilites_per_class, 1) 
-
                       
                if prediction[1] ~= class_id then
                       mistakes = mistakes + 1
