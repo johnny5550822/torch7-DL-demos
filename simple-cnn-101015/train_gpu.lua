@@ -12,7 +12,7 @@ require "torch"
 require "nn"
 require "math"
 require "cutorch" -- for GPU, Cuda
-require "cunn" -- for GPU, Cuda
+--require "cunn" -- for GPU, Cuda
 
 -- add command line input
 cmd = torch.CmdLine()
