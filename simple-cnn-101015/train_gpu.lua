@@ -75,6 +75,8 @@ function train_network(network,dataset)
 		-- for cuda
 		input = input:float():cuda()
 
+		output = torch.Tensor(1):fill(output):float():cuda()
+
 		-- forward propagation
 		criterion:forward(network:forward(input),output)
 		-- zero the accumlated gradient
