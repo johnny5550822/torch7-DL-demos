@@ -16,7 +16,9 @@ cmd:text('Training a simple CNN')
 cmd:text()
 cmd:text('Options')
 cmd:option('-lr',0.01,'Learning rate')
-cmd:option('-maxI',100000,'Maximum Iterations')
+cmd:option('-me',10,'Maximum Epochs')
+cmd:option('-bs',50,'Batch size')
+
 cmd:text()
 
 -- parse the input params
@@ -24,9 +26,8 @@ params =cmd:parse(arg)
 
 -- variables
 learningRate = params.lr
-maxIterations = params.maxI
-batch_size = 50	
-maxEpochs = 30
+maxEpochs = params.me
+batch_size = params.bs	
 totalImages = 10000 -- we know there are in total 10,000 images; each with size of 1 x 16 x 16
 patchSize = 16
 maxIterations = totalImages/batch_size -- this is per epochs; I did not calculate the max. total iterations for clarity
