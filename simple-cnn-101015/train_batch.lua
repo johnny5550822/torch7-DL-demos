@@ -26,7 +26,7 @@ params =cmd:parse(arg)
 learningRate = params.lr
 maxIterations = params.maxI
 batch_size = 50	
-maxEpochs = 10
+maxEpochs = 30
 totalImages = 10000 -- we know there are in total 10,000 images; each with size of 1 x 16 x 16
 patchSize = 16
 maxIterations = totalImages/batch_size -- this is per epochs; I did not calculate the max. total iterations for clarity
@@ -57,11 +57,11 @@ function train_network(network,dataset)
 	print('Training the network......')
 	local criterion = nn.ClassNLLCriterion()
 
-	-- batch processing parameters
-    batch_counter = 1
-
 	-- loop
 	for epoch = 1, maxEpochs do
+		-- batch processing parameters
+    	batch_counter = 1
+
 		for iteration= 1, maxIterations do
 			print(string.format('Epoch No:%d. Iteration(max=%d) No.%d',epoch,maxIterations,iteration))
 
@@ -82,6 +82,7 @@ function train_network(network,dataset)
 				output[k] = dataset[i][2]
 				k = k + 1
 			end
+			batch_counter = batch_counter + 1 -- update batch_counter
 
 			-- forward propagation
 			criterion:forward(network:forward(input),output)
@@ -92,6 +93,7 @@ function train_network(network,dataset)
 			-- after backward propagation; update the parameters
 			network:updateParameters(learningRate)
 		end
+		print(batch_counter)
 	end
 end
 
