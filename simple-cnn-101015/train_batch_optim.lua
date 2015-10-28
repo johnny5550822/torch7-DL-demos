@@ -1,5 +1,7 @@
 -- ###############
--- This version is built on top of train.lua, which supports batch processing
+-- This version has batch processing and function to select different gradient learning method
+-- include confusion matrix
+
 -- The training data can be also obtained in https://github.com/hpenedones/luacnn
 
 -- CPU only
@@ -8,6 +10,9 @@
 require "torch"
 require "nn"
 require "math"
+require "optim"
+require 'xlua' -- provides useful tools, such as progress bars
+require 'gnuplot'
 
 -- add command line input
 cmd = torch.CmdLine()
@@ -18,6 +23,7 @@ cmd:text('Options')
 cmd:option('-lr',0.01,'Learning rate')
 cmd:option('-me',2,'Maximum Epochs')
 cmd:option('-bs',50,'Batch size')
+cmd:option('-optim','adagrad','Optimization method')
 
 cmd:text()
 
@@ -31,6 +37,9 @@ batch_size = params.bs
 totalImages = 10000 -- we know there are in total 10,000 images; each with size of 1 x 16 x 16
 patchSize = 16
 maxIterations = totalImages/batch_size -- this is per epochs; I did not calculate the max. total iterations for clarity
+
+-- initiate the confusion matrix
+-- confusion = optim.ConfusionMatrix(10)
 
 -- create the neural network
 function create_network(nb_outputs)
@@ -53,49 +62,112 @@ function create_network(nb_outputs)
 	return cnn
 end
 
+-- select optimization algorithm
+function select_optim(optimization)
+	local optimState -- the state of the method
+	local optimMethod --what method to use
+	if optimization == 'lbfgs' then
+	  optimState = {
+	    learningRate = 1e-1,
+	    maxIter = 2,
+	    nCorrection = 10
+	  }
+	  optimMethod = optim.lbfgs
+	elseif optimization == 'sgd' then
+	  optimState = {
+	    learningRate = 1e-2,
+	    weightDecay = 0.0005,
+	    momentum = 0.9,
+	    learningRateDecay = 1e-4
+	  }
+	  optimMethod = optim.sgd
+	elseif optimization == 'adagrad' then
+	  optimState = {
+	    learningRate = 1e-1,
+	  }
+	  optimMethod = optim.adagrad
+	else
+	  error('Unknown optimizer')
+	end
+	return optimState, optimMethod
+end
+
+
 --train a network
-function train_network(network,dataset)
+function train_network(network,dataset, optimMethod, optimState, parameters, gradParameters)
 	print('Training the network......')
 	local criterion = nn.ClassNLLCriterion()
 
-	-- loop
+	----------------------------- this is the evaluation function for the optimization
+	function feval(x)
+		-- check if x is updated to date		
+		if x ~= parameters then	
+			parameters:copy(x)	-- parameters are first defined in the main()
+		end
+
+		-- prepare for the batch
+		startPos = batch_size * (batch_counter-1) + 1
+		endPos = batch_size * batch_counter
+		input = torch.Tensor(batch_size,1,patchSize,patchSize):zero() -- this iteration batch
+		target = torch.Tensor(batch_size):zero()
+		k = 1 -- internal counter for the batch
+		for i=startPos,endPos do
+			input[{{k},1,{},{}}]:copy(dataset[i][1])
+			target[k] = dataset[i][2]
+			k = k + 1
+		end
+		batch_counter = batch_counter + 1 -- update batch_counter
+
+		-- set gradient parameters to zero
+		gradParameters:zero()
+
+		------------------- compute loss and gradient
+		-- forward propagation
+		local batch_outputs = network:forward(input)
+		local batch_loss = criterion:forward(batch_outputs,target)
+		-- backward propagation
+		local dloss_doutput = criterion:backward(batch_outputs,target)
+		network:backward(input, dloss_doutput)
+
+		return batch_loss, gradParameters
+	end
+
+	----------------------- start the training processing
+	local losses = {} -- training losses for each epoch
 	for epoch = 1, maxEpochs do
 		-- batch processing parameters
     	batch_counter = 1
+    	print(string.format('Epoch No:%d. (Max=%d)',epoch,maxEpochs))
 
 		for iteration= 1, maxIterations do
-			print(string.format('Epoch No:%d. Iteration(max=%d) No.%d',epoch,maxIterations,iteration))
+			xlua.progress(iteration,maxIterations) -- progress bar
 
-			--[[
-			local index = math.random(dataset:size()) --pick example at random
-			local input = dataset[index][1] -- size 1x16x16
-			local output = dataset[index][2] -- size 1
-			]]
+			local _,minibatch_loss = optimMethod(feval,parameters, optimState)
 
-			-- prepare for the batch
-			startPos = batch_size * (batch_counter-1) + 1
-			endPos = batch_size * batch_counter
-			input = torch.Tensor(batch_size,1,patchSize,patchSize):zero() -- this iteration batch
-			output = torch.Tensor(batch_size):zero()
-			k = 1 -- internal counter for the batch
-			for i=startPos,endPos do
-				input[{{k},1,{},{}}]:copy(dataset[i][1])
-				output[k] = dataset[i][2]
-				k = k + 1
+			-- print loss at certain time; don't have to print all the time
+			if iteration%10 ==0 then
+				print('Training loss:'..minibatch_loss[1])
 			end
-			batch_counter = batch_counter + 1 -- update batch_counter
 
-			-- forward propagation
-			criterion:forward(network:forward(input),output)
-			-- zero the accumlated gradient
-			network:zeroGradParameters()
-			-- backward propagation
-			network:backward(input,criterion:backward(network.output,output))
-			-- after backward propagation; update the parameters
-			network:updateParameters(learningRate)
+			-- update losses for each epoch
+			if iteration == maxIterations then
+				losses[#losses + 1] = minibatch_loss[1]
+			end
 		end
-		print(batch_counter)
+
+		-- collect the garbage in case
+		collectgarbage()
 	end
+
+	-- once this training is done, plot the losses
+	gnuplot.plot({
+ 		'train-loss',
+  		torch.range(1, #losses),        -- x-coordinates for data to plot, creates a tensor holding {1,2,3,...,#losses}
+  		torch.Tensor(losses),           -- y-coordinates (the training losses)
+  	'-'})
+  	gnuplot.title('Training error')
+	gnuplot.xlabel('Number of epochs')
+	gnuplot.ylabel('Loss')
 end
 
 --test the network
@@ -141,13 +213,18 @@ function shuffleData(data)
 	return shuffle_data
 end
 
+------------------------------------------------------------START
 --main 
 function main()
 	local training_dataset, testing_dataset, classes, classes_names = dofile('usps_dataset.lua')
 	local network = create_network(#classes)
 	s_training_dataset = shuffleData(training_dataset)
 
-	train_network(network,s_training_dataset)
+    -- determine the optimization method
+    local optimState, optimMethod = select_optim(params.optim)
+    local parameters, gradParameters = network:getParameters() -- get the parameters of the network
+
+	train_network(network,s_training_dataset, optimMethod, optimState, parameters, gradParameters)
 	test_predictor(network, testing_dataset, classes, classes_names)
 end
 
