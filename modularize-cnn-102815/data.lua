@@ -1,3 +1,4 @@
+-- Prepare the data; usps digit data
 
 require "torch"
 require "image"
