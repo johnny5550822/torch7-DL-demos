@@ -23,7 +23,7 @@ cmd:text('Options')
 cmd:option('-lr',0.01,'Learning rate')
 cmd:option('-me',2,'Maximum Epochs')
 cmd:option('-bs',50,'Batch size')
-cmd:option('-optim','adagrad','Optimization method')
+cmd:option('-optim','sgd','Optimization method')
 
 cmd:text()
 
@@ -93,8 +93,8 @@ function select_optim(optimization)
 end
 
 
---train a network
-function train_network(network,dataset, optimMethod, optimState, parameters, gradParameters)
+--train a network. You may not like this function because there are many inputs. Since I intend to use function to separate different parts, this is one way to go. I don't like it too much too. I will try to improve it later
+function train_network(network,dataset, optimMethod, optimState, parameters, gradParameters, testing_dataset, classes, classes_names)
 	print('Training the network......')
 	local criterion = nn.ClassNLLCriterion()
 
@@ -125,6 +125,7 @@ function train_network(network,dataset, optimMethod, optimState, parameters, gra
 		-- forward propagation
 		local batch_outputs = network:forward(input)
 		local batch_loss = criterion:forward(batch_outputs,target)
+
 		-- backward propagation
 		local dloss_doutput = criterion:backward(batch_outputs,target)
 		network:backward(input, dloss_doutput)
@@ -133,13 +134,16 @@ function train_network(network,dataset, optimMethod, optimState, parameters, gra
 	end
 
 	----------------------- start the training processing
-	local losses = {} -- training losses for each epoch
+	local train_losses = {} -- training losses for each epoch
+	local test_losses = {} -- testing losses
+	local test_errs = {} -- testing error
 	for epoch = 1, maxEpochs do
 		-- batch processing parameters
     	batch_counter = 1
     	print(string.format('Epoch No:%d. (Max=%d)',epoch,maxEpochs))
 
-		for iteration= 1, maxIterations do
+    	maxIterations = 10
+		for iteration= 1,maxIterations do
 			xlua.progress(iteration,maxIterations) -- progress bar
 
 			local _,minibatch_loss = optimMethod(feval,parameters, optimState)
@@ -151,30 +155,58 @@ function train_network(network,dataset, optimMethod, optimState, parameters, gra
 
 			-- update losses for each epoch
 			if iteration == maxIterations then
-				losses[#losses + 1] = minibatch_loss[1]
+				train_losses[#train_losses + 1] = minibatch_loss[1]
 			end
 		end
 
-		-- collect the garbage in case
-		collectgarbage()
+		-- testing
+		test_err, test_loss = test_predictor(network,criterion, testing_dataset, classes, classes_names)
+		test_errs[#test_errs +1] = test_err
+		test_losses[#test_losses + 1] = test_loss
+
+		-- print
+		print ( "Test error " .. test_err)
+        print("Test loss:" .. test_loss)
+
+		-- collect the garbage in case; update on 10/28/15 no need to do collect garbage anymore according to the official site
+		-- collectgarbage()
 	end
 
-	-- once this training is done, plot the losses
+	---------------------------------- once this training is done, plot 
+	-- the losses
 	gnuplot.plot({
- 		'train-loss',
-  		torch.range(1, #losses),        -- x-coordinates for data to plot, creates a tensor holding {1,2,3,...,#losses}
-  		torch.Tensor(losses),           -- y-coordinates (the training losses)
-  	'-'})
+	  'train-loss',
+	  torch.range(1, #train_losses),        -- x-coordinates for data to plot, creates a tensor holding {1,2,3,...,#losses}
+	  torch.Tensor(train_losses),           -- y-coordinates (the training losses)
+	  '-'},
+	  {
+	  'test-loss',
+	  torch.range(1, #test_losses),        -- x-coordinates for data to plot, creates a tensor holding {1,2,3,...,#losses}
+	  torch.Tensor(test_losses),           -- y-coordinates (the training losses)
+	  '-'}
+	 )
   	gnuplot.title('Training error')
 	gnuplot.xlabel('Number of epochs')
 	gnuplot.ylabel('Loss')
+
+	-- the error
+	gnuplot.plot({
+	  'test-error',
+	  torch.range(1, #test_errs),        -- x-coordinates for data to plot, creates a tensor holding {1,2,3,...,#losses}
+	  torch.Tensor(test_errs),           -- y-coordinates (the training losses)
+	  '-'}
+	 )
+  	gnuplot.title('Classification Error')
+	gnuplot.xlabel('Number of epochs')
+	gnuplot.ylabel('Error')
 end
 
 --test the network
-function test_predictor(predictor, test_dataset, classes, classes_names)
+function test_predictor(predictor, criterion, test_dataset, classes, classes_names)
 
         local mistakes = 0
         local tested_samples = 0
+        local test_loss = 0 -- calculate the loss for testing example
         
         print( "----------------------" )
         print( "Index Label Prediction" )
@@ -186,20 +218,25 @@ function test_predictor(predictor, test_dataset, classes, classes_names)
                local responses_per_class  =  predictor:forward(input) 
                local probabilites_per_class = torch.exp(responses_per_class)
                local probability, prediction = torch.max(probabilites_per_class, 1) 
+
+               -- update loss
+               test_loss = test_loss + criterion:forward(predictor:forward(input),torch.Tensor(1):fill(class_id))
                       
+               -- finding mismatch
                if prediction[1] ~= class_id then
                       mistakes = mistakes + 1
-                      local label = classes_names[ classes[class_id] ]
-                      local predicted_label = classes_names[ classes[prediction[1] ] ]
-                      print(i , label , predicted_label )
+                      -- local label = classes_names[ classes[class_id] ]
+                      -- local predicted_label = classes_names[ classes[prediction[1] ] ]
+                      -- print(i , label , predicted_label )
                end
 
                tested_samples = tested_samples + 1
         end
 
         local test_err = mistakes/tested_samples
-        print ( "Test error " .. test_err .. " ( " .. mistakes .. " out of " .. tested_samples .. " )")
+        test_loss = test_loss / test_dataset:size() -- get the average loss
 
+        return test_err,test_loss
 end
 
 -- shuffle the data
@@ -224,8 +261,7 @@ function main()
     local optimState, optimMethod = select_optim(params.optim)
     local parameters, gradParameters = network:getParameters() -- get the parameters of the network
 
-	train_network(network,s_training_dataset, optimMethod, optimState, parameters, gradParameters)
-	test_predictor(network, testing_dataset, classes, classes_names)
+	train_network(network,s_training_dataset, optimMethod, optimState, parameters, gradParameters,testing_dataset, classes, classes_names)
 end
 
 --run 
