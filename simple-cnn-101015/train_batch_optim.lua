@@ -190,6 +190,7 @@ function train_network(network,dataset, optimMethod, optimState, parameters, gra
 	gnuplot.ylabel('Loss')
 
 	-- the error
+	gnuplot.figure()
 	gnuplot.plot({
 	  'test-error',
 	  torch.range(1, #test_errs),        -- x-coordinates for data to plot, creates a tensor holding {1,2,3,...,#losses}
