@@ -38,8 +38,9 @@ totalImages = 10000 -- we know there are in total 10,000 images; each with size 
 patchSize = 16
 maxIterations = totalImages/batch_size -- this is per epochs; I did not calculate the max. total iterations for clarity
 
--- initiate the confusion matrix
--- confusion = optim.ConfusionMatrix(10)
+-- initiate the confusion matrix to store tp, tn, etc
+local train_confusion = optim.ConfusionMatrix(10) 
+-- local test_confusion = optim.ConfusionMatrix(10) -- not include in this point
 
 -- create the neural network
 function create_network(nb_outputs)
@@ -130,10 +131,13 @@ function train_network(network,dataset, optimMethod, optimState, parameters, gra
 		local dloss_doutput = criterion:backward(batch_outputs,target)
 		network:backward(input, dloss_doutput)
 
+		-- update confusion matrix
+		train_confusion:batchAdd(batch_outputs,target)
+
 		return batch_loss, gradParameters
 	end
 
-	----------------------- start the training processing
+	-----------------------training processing
 	local train_losses = {} -- training losses for each epoch
 	local test_losses = {} -- testing losses
 	local test_errs = {} -- testing error
@@ -142,7 +146,7 @@ function train_network(network,dataset, optimMethod, optimState, parameters, gra
     	batch_counter = 1
     	print(string.format('Epoch No:%d. (Max=%d)',epoch,maxEpochs))
 
-    	maxIterations = 10
+    	-- maxIterations = 10
 		for iteration= 1,maxIterations do
 			xlua.progress(iteration,maxIterations) -- progress bar
 
@@ -156,8 +160,16 @@ function train_network(network,dataset, optimMethod, optimState, parameters, gra
 			-- update losses for each epoch
 			if iteration == maxIterations then
 				train_losses[#train_losses + 1] = minibatch_loss[1]
+
+				-- print
+				train_confusion:updateValids()
+				print('Training confusion matrix')
+				print(train_confusion)
+				print('Training accuracy:' .. train_confusion.totalValid * 100)
 			end
 		end
+		-- reset confusion matrix
+		train_confusion:zero()
 
 		-- testing
 		test_err, test_loss = test_predictor(network,criterion, testing_dataset, classes, classes_names)
@@ -165,7 +177,7 @@ function train_network(network,dataset, optimMethod, optimState, parameters, gra
 		test_losses[#test_losses + 1] = test_loss
 
 		-- print
-		print ( "Test error " .. test_err)
+		print("Test error " .. test_err)
         print("Test loss:" .. test_loss)
 
 		-- collect the garbage in case; update on 10/28/15 no need to do collect garbage anymore according to the official site
@@ -222,6 +234,7 @@ function test_predictor(predictor, criterion, test_dataset, classes, classes_nam
 
                -- update loss
                test_loss = test_loss + criterion:forward(predictor:forward(input),torch.Tensor(1):fill(class_id))
+
                       
                -- finding mismatch
                if prediction[1] ~= class_id then
@@ -234,8 +247,9 @@ function test_predictor(predictor, criterion, test_dataset, classes, classes_nam
                tested_samples = tested_samples + 1
         end
 
-        local test_err = mistakes/tested_samples
-        test_loss = test_loss / test_dataset:size() -- get the average loss
+        -- update
+        local test_err =  mistakes/tested_samples
+        test_loss = test_loss / tested_samples -- get the average loss
 
         return test_err,test_loss
 end
