@@ -4,8 +4,6 @@
 -- include confusion matrix
 
 -- The training data can be also obtained in https://github.com/hpenedones/luacnn
-
--- CPU only
 -- ###############
 
 require "torch"
