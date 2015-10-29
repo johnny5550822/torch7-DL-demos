@@ -23,6 +23,9 @@ require './model/simple_model.lua' -- one way to incorporate external function
 local opts = paths.dofile('opts.lua')
 params = opts.parse(arg)
 
+-- universal prefix---"name" to differentiate this with other model in case I am training multiple model
+model_prefix = '102915-tisse-fate' --global TO BE ACCESSBLE BY OTHER MODULES
+
 -- variables; they must be global variable so that other functions can access it. It's a hack; I don't like this that much,
 learningRate = params.lr
 maxEpochs = params.me
@@ -52,6 +55,16 @@ function main()
     local parameters, gradParameters = network:getParameters() -- get the parameters of the network
 
 	train_network(network,s_training_dataset, optimMethod, optimState, parameters, gradParameters,testing_dataset, classes, classes_names)
+end
+
+-- main to load the trained model and do test
+function main_test()
+	local model = torch.load('trained_model/102915-tisse-fate-5-epochs.model'):cuda()
+	local training_dataset, testing_dataset, classes, classes_names = dofile('data.lua')
+	local criterion = nn.ClassNLLCriterion():cuda() -- based on what we use in train
+
+	test_err,test_loss = test_predictor(model,criterion,testing_dataset,classes,classes_names)
+	print('Test error:' .. test_err)
 end
 
 --run 

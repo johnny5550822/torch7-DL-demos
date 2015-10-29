@@ -98,6 +98,12 @@ function train_network(network,dataset, optimMethod, optimState, parameters, gra
 
 		-- collect the garbage in case; update on 10/28/15 no need to do collect garbage anymore according to the official site
 		-- collectgarbage()
+
+		-- for each epoch, store the models
+		if (epoch%5 ==0 or epoch == maxEpochs) then
+			torch.save(string.format('trained_model/%s-%d-epochs.model',model_prefix,epoch),network)
+		end
+
 	end
 
 	---------------------------------- once this training is done, plot 
