@@ -53,6 +53,7 @@ function train_network(network,dataset)
 	local criterion = nn.ClassNLLCriterion()
 
 	for iteration= 1, maxIterations do
+		network:training()
 		print(string.format('Iteration(max=%d) No.%d',maxIterations,iteration))
 
 		local index = math.random(dataset:size()) --pick example at random
@@ -76,7 +77,7 @@ end
 
 --test the network
 function test_predictor(predictor, test_dataset, classes, classes_names)
-
+	predictor:evaluate()
         local mistakes = 0
         local tested_samples = 0
         
