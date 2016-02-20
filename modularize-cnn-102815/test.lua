@@ -4,7 +4,8 @@ local tested_samples = 0
 local test_loss = 0 -- calculate the loss for testing example
 
 function test_predictor(predictor, criterion, test_dataset, classes, classes_names)
-
+        predictor:evaluate()
+        
         -- loop
         for i=1,test_dataset:size() do
 
