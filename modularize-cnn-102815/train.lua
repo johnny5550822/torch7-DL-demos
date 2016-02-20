@@ -60,6 +60,7 @@ function train_network(network,dataset, optimMethod, optimState, parameters, gra
 
     	-- maxIterations = 10
 		for iteration= 1,maxIterations do
+			network:training()
 			xlua.progress(iteration,maxIterations) -- progress bar
 
 			local _,minibatch_loss = optimMethod(feval,parameters, optimState)
