@@ -10,7 +10,7 @@ function optsParser.parse(arg)
 	cmd:text()
 	cmd:text('Options')
 	cmd:option('-lr',0.01,'Learning rate')
-	cmd:option('-me',10,'Maximum Epochs')
+	cmd:option('-me',5,'Maximum Epochs')
 	cmd:option('-bs',50,'Batch size')
 	cmd:option('-optim','adagrad','Optimization method')
 

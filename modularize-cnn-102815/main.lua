@@ -47,7 +47,7 @@ paths.dofile('util.lua')
 --main 
 function main()
 	local training_dataset, testing_dataset, classes, classes_names = dofile('data.lua')
-	local network = simple_model(#classes)
+	local network = simple_model(#classes) -- untrained model
 	s_training_dataset = shuffleData(training_dataset)
 
     -- determine the optimization method
